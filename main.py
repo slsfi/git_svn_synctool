@@ -8,6 +8,7 @@ import traceback
 
 
 # TODO support for subdirectory of git repo
+# TODO support setting up new git slave, initial sync from SVN
 
 
 svn = ["svn", "--non-interactive"]
