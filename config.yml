@@ -1,0 +1,5 @@
+git_remote: /remote.git
+
+svn_remote: file:///svn_remote
+svn_username: null
+svn_password: null
