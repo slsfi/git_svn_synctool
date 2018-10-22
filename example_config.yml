@@ -1,0 +1,6 @@
+git_remote: git@github.com:Organisation/TestingRepo.git
+git_subfolder: masterfiles
+
+svn_remote: http://svn.organisation.com/repos/test
+svn_username: TestUser
+svn_password: passw0rd!

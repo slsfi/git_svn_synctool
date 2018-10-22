@@ -1,4 +1,5 @@
 git_remote: /remote.git
+git_subfolder: masterfiles
 
 svn_remote: file:///svn_remote
 svn_username: null

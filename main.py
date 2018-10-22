@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 from ruamel.yaml import YAML
@@ -7,24 +8,28 @@ import sys
 import traceback
 
 
-# TODO support for subdirectory of git repo
-# TODO support setting up new git slave, initial sync from SVN
-
-
 svn = ["svn", "--non-interactive"]
 
 
-def run_command_and_return_output(cmd, cwd=None):
-    output = subprocess.check_output(cmd, cwd=cwd)
+def run_command_and_return_output(command_list, working_folder=None):
+    """
+    Runs the command (given as a list, containing the command and eventual arguments) in the given working directory
+    Returns the command output as a list of lines, captured from stdout
+    """
+    output = subprocess.check_output(command_list, cwd=working_folder)
     output = [s.strip().decode("utf-8", errors="ignore") for s in output.splitlines()]
     return output
 
 
 class GitSVNSyncTool(object):
-    def __init__(self, config_file):
+    def __init__(self, config_file, log_level, init):
         global svn
+        self.initialize_new_git_repo = init
+
+        # Set up logging
         self.logger = logging.getLogger("sync_tool")
-        self.logger.setLevel(logging.DEBUG)
+        numeric_log_level = getattr(logging, log_level.upper())
+        self.logger.setLevel(numeric_log_level)
         log_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', '%H:%M:%S')
         stream_handler = logging.StreamHandler(sys.stdout)
         stream_handler.setFormatter(log_formatter)
@@ -33,11 +38,13 @@ class GitSVNSyncTool(object):
         with open(config_file) as conf:
             self.config = YAML(typ="safe").load(conf.read())
 
+        # Set up an easy shorthand for SVN commands
         if self.config["svn_username"] is not None and self.config["svn_password"] is not None:
             svn += ["--username", self.config["svn_username"]]
             svn += ["--password", self.config["svn_password"]]
             svn += ["--no-auth-cache"]
 
+        # Set up working copies to use for syncing
         self.git_local_root = os.path.join(os.getcwd(), "git_repo")
         if not os.path.exists(self.git_local_root):
             clone = run_command_and_return_output(["git", "clone", self.config["git_remote"], self.git_local_root])
@@ -133,35 +140,55 @@ class GitSVNSyncTool(object):
         self.logger.debug(status)
         return error_info is None, error_info, status
 
+    def copy_file_with_directory_tree(self, source_root, source_file_path, target_root):
+        self.logger.debug("Copying file {}".format(source_file_path))
+        if os.path.sep in source_file_path:
+            dir_structure = os.path.sep.join(source_file_path.split(os.path.sep)[:-1])
+            os.makedirs(os.path.join(target_root, dir_structure), exist_ok=True)
+            self.logger.debug("Copying {} from {} to {}/{}".format(source_file_path, source_root, target_root, dir_structure))
+            shutil.copy2(os.path.join(source_root, source_file_path), os.path.join(target_root, dir_structure))
+        else:
+            self.logger.debug("Copying file {} from {} to {}".format(source_file_path, source_root, target_root))
+            shutil.copy2(os.path.join(source_root, source_file_path), target_root)
+
     def git_to_svn(self, file_list):
         svn_update_success, svn_error, svn_status = self.update_svn_from_remote()
         git_update_success, git_error, git_status = self.update_git_from_remote()
-        # TODO log errors and notify
         add = list(svn) + ["add", "--force"]
         commit = list(svn) + ["commit", "-m", "\"Sync from Git\""]
         update = list(svn) + ["update"]
         if svn_update_success and git_update_success:
             for file in file_list:
-                if os.path.exists(os.path.join(self.svn_local_root, file)):
-                    os.remove(os.path.join(self.svn_local_root, file))
-                shutil.copy2(os.path.join(self.git_local_root, file), self.svn_local_root)
-                add_return = run_command_and_return_output(add + [file], cwd=self.svn_local_root)
+                self.copy_file_with_directory_tree(self.git_local_root, file, self.svn_local_root)
+                if self.config["git_subfolder"] is not None:
+                    add_return = run_command_and_return_output(add + [file.split(self.config["git_subfolder"] + "/")[-1]], cwd=self.svn_local_root)
+                else:
+                    add_return = run_command_and_return_output(add + [file], cwd=self.svn_local_root)
                 self.logger.debug("SVN add: {}".format(add_return))
             commit_return = run_command_and_return_output(commit, cwd=self.svn_local_root)
             self.logger.debug("SVN commit: {}".format(commit_return))
             update_return = run_command_and_return_output(update, cwd=self.svn_local_root)
             self.logger.debug("SVN update: {}".format(update_return))
+        else:
+            if not svn_update_success:
+                self.logger.error("Error in SVN update - {}".format(svn_error))
+                self.logger.error("Current local SVN repo status - {}".format(svn_status))
+            if not git_update_success:
+                self.logger.error("Error in Git pull - {}".format(git_error))
+                self.logger.error("Current local Git repo status - {}".format(git_status))
 
     def svn_to_git(self, file_list):
         svn_update_success, svn_error, svn_status = self.update_svn_from_remote()
         git_update_success, git_error, git_status = self.update_git_from_remote()
-        # TODO log errors and notify
         if svn_update_success and git_update_success:
             for file in file_list:
-                if os.path.exists(os.path.join(self.git_local_root, file)):
-                    os.remove(os.path.join(self.git_local_root, file))
-                shutil.copy2(os.path.join(self.svn_local_root, file), self.git_local_root)
-                add_return = run_command_and_return_output(["git", "-C", self.git_local_root, "add", file])
+                if self.config["git_subfolder"] is not None:
+                    self.copy_file_with_directory_tree(self.svn_local_root, file, os.path.join(self.git_local_root, self.config["git_subfolder"]))
+                    add_return = run_command_and_return_output(["git", "-C", self.git_local_root, "add", os.path.join(self.config["git_subfolder"], file)])
+                else:
+                    self.copy_file_with_directory_tree(self.svn_local_root, file, self.git_local_root)
+                    add_return = run_command_and_return_output(["git", "-C", self.git_local_root, "add", file])
+
                 self.logger.debug("Git add: {}".format(add_return))
             commit_return = run_command_and_return_output(["git", "-C", self.git_local_root,
                                                            "commit", "-m", "Sync from SVN"])
@@ -169,6 +196,13 @@ class GitSVNSyncTool(object):
 
             push_return = run_command_and_return_output(["git", "-C", self.git_local_root, "push"])
             self.logger.debug("Git push: {}".format(push_return))
+        else:
+            if not svn_update_success:
+                self.logger.error("Error in SVN update - {}".format(svn_error))
+                self.logger.error("Current local SVN repo status - {}".format(svn_status))
+            if not git_update_success:
+                self.logger.error("Error in Git pull - {}".format(git_error))
+                self.logger.error("Current local Git repo status - {}".format(git_status))
 
     def sync_changes(self):
         git_changes = self.get_git_changes()
@@ -177,6 +211,25 @@ class GitSVNSyncTool(object):
         # Use a set to check, it's significantly faster than membership checking against a list
         temp = set(svn_changes)
         conflicts = [change for change in git_changes if change in temp]
+
+        if self.initialize_new_git_repo:
+            git_changes = []
+            conflicts = []
+            self.logger.info("Ignoring data in Git repository as requested, syncing all files in SVN repo...")
+            all_svn_files = subprocess.check_output(["svn", "ls", "-R", self.config["svn_remote"]])  # includes directories as separate lines, ending with /
+            all_svn_files = [s.decode("utf-8", "ignore") for s in all_svn_files.splitlines()]
+            self.logger.debug("All SVN files: {}".format(", ".join(all_svn_files)))
+            svn_files = []
+            for file in all_svn_files:
+                if file.endswith("/"):
+                    self.logger.debug("Creating folder {}".format(file))
+                    if self.config["git_subfolder"] is None:
+                        os.makedirs(os.path.join(self.git_local_root, file), exist_ok=True)
+                    else:
+                        os.makedirs(os.path.join(self.git_local_root, self.config["git_subfolder"], file), exist_ok=True)
+                else:
+                    svn_files.append(file)
+            svn_changes = list(svn_files)
 
         if len(git_changes) == 0 and len(svn_changes) == 0:
             self.logger.info("No changes.")
@@ -187,6 +240,9 @@ class GitSVNSyncTool(object):
             self.svn_to_git(svn_changes)
         elif len(git_changes) > 0 and len(svn_changes) == 0:
             # Sync changes from Git to SVN
+            if self.config["git_subfolder"] is not None:
+                self.logger.info("Skipping sync for files not in masterfiles directory...")
+                git_changes = [file for file in git_changes if file.startswith(self.config["git_subfolder"])]
             self.logger.info("Syncing to SVN: {}".format(", ".join(git_changes)))
             self.git_to_svn(git_changes)
         else:
@@ -213,5 +269,12 @@ class GitSVNSyncTool(object):
 
 
 if __name__ == "__main__":
-    sync_tool = GitSVNSyncTool("config.yml")
+    parser = argparse.ArgumentParser(description="SyncTool - For syncing SVN masterfiles into a Git repo and eventual changes back.")
+    parser.add_argument("config_file", help="The config file to use.")
+    parser.add_argument("-l", "--log-level", help="Logging level, defaults to INFO", default="INFO")
+    parser.add_argument("--init", help="Ignore all data in the git repo and simply sync over all files in the SVN repo.", action="store_true")
+
+    args = parser.parse_args()
+
+    sync_tool = GitSVNSyncTool(args.config_file, args.log_level, args.init)
     sync_tool.sync_changes()

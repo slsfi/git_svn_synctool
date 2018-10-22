@@ -25,8 +25,13 @@ RUN git config --global user.email "test@test.com"
 RUN git config --global user.name "Docker Test User"
 RUN git init --bare /remote.git
 RUN git clone /remote.git /tmp/git
-RUN touch /tmp/git/test_file.txt
-RUN git -C /tmp/git add test_file.txt && git -C /tmp/git commit -m "Initial commit" && git -C /tmp/git push
+RUN mkdir /tmp/git/masterfiles
+RUN touch /tmp/git/masterfiles/test_file.txt
+RUN git -C /tmp/git add masterfiles/test_file.txt && git -C /tmp/git commit -m "Initial commit" && git -C /tmp/git push
 # Remote must be a bare repository with no working copy in order for commits to be pushed to it safely
 
 # Local working copies left in /tmp for testing
+
+ENTRYPOINT ["python", "main.py"]
+
+CMD ["-h"]
