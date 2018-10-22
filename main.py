@@ -78,7 +78,7 @@ class GitSVNSyncTool(object):
         return changed_files
 
     def get_current_svn_revision(self):
-        output = run_command_and_return_output(["svn", "info"], cwd=self.svn_local_root)
+        output = run_command_and_return_output(["svn", "info"], working_folder=self.svn_local_root)
         for line in output:
             if line.startswith("Revision"):
                 return line.split(" ")[1]
@@ -128,15 +128,15 @@ class GitSVNSyncTool(object):
         """
         try:
             update = list(svn) + ["update"]
-            update_return = run_command_and_return_output(update, cwd=self.svn_local_root)
+            update_return = run_command_and_return_output(update, working_folder=self.svn_local_root)
             self.logger.debug(update_return)
-        except Exception:
+        except subprocess.CalledProcessError:
             error_info = traceback.format_exc()
-            self.logger.debug(error_info)
+            self.logger.error("Error during SVN update - {}".format(error_info))
         else:
             error_info = None
         status = list(svn) + ["status"]
-        status = run_command_and_return_output(status, cwd=self.svn_local_root)
+        status = run_command_and_return_output(status, working_folder=self.svn_local_root)
         self.logger.debug(status)
         return error_info is None, error_info, status
 
@@ -161,13 +161,13 @@ class GitSVNSyncTool(object):
             for file in file_list:
                 self.copy_file_with_directory_tree(self.git_local_root, file, self.svn_local_root)
                 if self.config["git_subfolder"] is not None:
-                    add_return = run_command_and_return_output(add + [file.split(self.config["git_subfolder"] + "/")[-1]], cwd=self.svn_local_root)
+                    add_return = run_command_and_return_output(add + [file.split(self.config["git_subfolder"] + "/")[-1]], working_folder=self.svn_local_root)
                 else:
-                    add_return = run_command_and_return_output(add + [file], cwd=self.svn_local_root)
+                    add_return = run_command_and_return_output(add + [file], working_folder=self.svn_local_root)
                 self.logger.debug("SVN add: {}".format(add_return))
-            commit_return = run_command_and_return_output(commit, cwd=self.svn_local_root)
+            commit_return = run_command_and_return_output(commit, working_folder=self.svn_local_root)
             self.logger.debug("SVN commit: {}".format(commit_return))
-            update_return = run_command_and_return_output(update, cwd=self.svn_local_root)
+            update_return = run_command_and_return_output(update, working_folder=self.svn_local_root)
             self.logger.debug("SVN update: {}".format(update_return))
         else:
             if not svn_update_success:
