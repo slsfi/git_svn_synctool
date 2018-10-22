@@ -141,9 +141,8 @@ class GitSVNSyncTool(object):
         return error_info is None, error_info, status
 
     def copy_file_with_directory_tree(self, source_root, source_file_path, target_root):
-        self.logger.debug("Copying file {}".format(source_file_path))
-        if os.path.sep in source_file_path:
-            dir_structure = os.path.sep.join(source_file_path.split(os.path.sep)[:-1])
+        if os.sep in source_file_path:
+            dir_structure = os.path.dirname(source_file_path)
             os.makedirs(os.path.join(target_root, dir_structure), exist_ok=True)
             self.logger.debug("Copying {} from {} to {}/{}".format(source_file_path, source_root, target_root, dir_structure))
             shutil.copy2(os.path.join(source_root, source_file_path), os.path.join(target_root, dir_structure))
