@@ -52,6 +52,7 @@ class GitSVNSyncTool(object):
 
         self.svn_local_root = os.path.join(os.getcwd(), "svn_repo")
         if not os.path.exists(self.svn_local_root):
+            os.makedirs(self.svn_local_root)
             cmd = list(svn)
             cmd += ["checkout", self.config["svn_remote"], self.svn_local_root]
             checkout = run_command_and_return_output(cmd)
