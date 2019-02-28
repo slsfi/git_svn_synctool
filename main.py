@@ -8,9 +8,6 @@ import sys
 import traceback
 
 
-svn = ["svn", "--non-interactive"]
-
-
 def run_command_and_return_output(command_list, working_folder=None):
     """
     Runs the command (given as a list, containing the command and eventual arguments) in the given working directory
@@ -23,7 +20,7 @@ def run_command_and_return_output(command_list, working_folder=None):
 
 class GitSVNSyncTool(object):
     def __init__(self, config_file, log_level, init):
-        global svn
+        self.svn = ["svn", "--non-interactive"]
         self.initialize_new_git_repo = init
 
         # Set up logging
@@ -40,9 +37,9 @@ class GitSVNSyncTool(object):
 
         # Set up an easy shorthand for SVN commands
         if self.config["svn_username"] is not None and self.config["svn_password"] is not None:
-            svn += ["--username", self.config["svn_username"]]
-            svn += ["--password", self.config["svn_password"]]
-            svn += ["--no-auth-cache"]
+            self.svn += ["--username", self.config["svn_username"]]
+            self.svn += ["--password", self.config["svn_password"]]
+            self.svn += ["--no-auth-cache"]
 
         # Set up working copies to use for syncing
         self.git_local_root = os.path.join(os.getcwd(), "git_repo")
@@ -52,8 +49,7 @@ class GitSVNSyncTool(object):
 
         self.svn_local_root = os.path.join(os.getcwd(), "svn_repo")
         if not os.path.exists(self.svn_local_root):
-            os.makedirs(self.svn_local_root)
-            cmd = list(svn)
+            cmd = list(self.svn)
             cmd += ["checkout", self.config["svn_remote"], self.svn_local_root]
             checkout = run_command_and_return_output(cmd)
             self.logger.debug("Checked out remote SVN repo: {!r}".format("; ".join(checkout)))
@@ -88,7 +84,7 @@ class GitSVNSyncTool(object):
         # Get current revision we are on
         current_svn_revision = self.get_current_svn_revision()
 
-        cmd = list(svn)
+        cmd = list(self.svn)
         if self.config["svn_username"] is not None and self.config["svn_password"] is not None:
             cmd += ["--username", self.config["svn_username"]]
             cmd += ["--password", self.config["svn_password"]]
@@ -128,7 +124,7 @@ class GitSVNSyncTool(object):
         (False, <svn update return code and output>, <svn status output>)
         """
         try:
-            update = list(svn) + ["update"]
+            update = list(self.svn) + ["update"]
             update_return = run_command_and_return_output(update, working_folder=self.svn_local_root)
             self.logger.debug(update_return)
         except subprocess.CalledProcessError:
@@ -136,7 +132,7 @@ class GitSVNSyncTool(object):
             self.logger.error("Error during SVN update - {}".format(error_info))
         else:
             error_info = None
-        status = list(svn) + ["status"]
+        status = list(self.svn) + ["status"]
         status = run_command_and_return_output(status, working_folder=self.svn_local_root)
         self.logger.debug(status)
         return error_info is None, error_info, status
@@ -154,9 +150,9 @@ class GitSVNSyncTool(object):
     def git_to_svn(self, file_list):
         svn_update_success, svn_error, svn_status = self.update_svn_from_remote()
         git_update_success, git_error, git_status = self.update_git_from_remote()
-        add = list(svn) + ["add", "--force"]
-        commit = list(svn) + ["commit", "-m", "\"Sync from Git\""]
-        update = list(svn) + ["update"]
+        add = list(self.svn) + ["add", "--force"]
+        commit = list(self.svn) + ["commit", "-m", "\"Sync from Git\""]
+        update = list(self.svn) + ["update"]
         if svn_update_success and git_update_success:
             for file in file_list:
                 self.copy_file_with_directory_tree(self.git_local_root, file, self.svn_local_root)
