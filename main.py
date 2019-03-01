@@ -85,10 +85,6 @@ class GitSVNSyncTool(object):
         current_svn_revision = self.get_current_svn_revision()
 
         cmd = list(self.svn)
-        if self.config["svn_username"] is not None and self.config["svn_password"] is not None:
-            cmd += ["--username", self.config["svn_username"]]
-            cmd += ["--password", self.config["svn_password"]]
-            cmd += ["--no-auth-cache"]
         cmd += ["diff", "-r", "{}:HEAD".format(current_svn_revision), "--summarize"]
 
         output = subprocess.check_output(cmd, cwd=self.svn_local_root)
