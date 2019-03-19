@@ -151,10 +151,28 @@ class GitSVNSyncTool(object):
         update = list(self.svn) + ["update"]
         if svn_update_success and git_update_success:
             for file in file_list:
-                self.copy_file_with_directory_tree(self.git_local_root, file, self.svn_local_root)
+                self.logger.debug("Filename: '{}'".format(file))
                 if self.config["git_subfolder"] is not None:
+                    # If there is a git_subfolder defined, we need to make sure the file structure in it is synced to SVN without making a subfolder for it.
+                    # Thus, strip out git_subfolder from the filepath
+                    file_no_git_subfolder = file.split(self.config["git_subfolder"])[-1].lstrip(os.sep)
+                    source_file = os.path.join(self.git_local_root, file)
+                    target_file = os.path.join(self.svn_local_root, file_no_git_subfolder)
+
+                    # if there is os.sep in the new filepath, it has a folder structure, recreate it in the svn_local_root and add to SVN's index
+                    if os.sep in file_no_git_subfolder:
+                        self.logger.debug("Creating folder structure {} in {}".format(os.path.dirname(file_no_git_subfolder), self.svn_local_root))
+                        os.makedirs(os.path.join(self.svn_local_root, os.path.dirname(file_no_git_subfolder)), exist_ok=True)
+                        add_return = run_command_and_return_output(add + [os.path.dirname(file_no_git_subfolder)], working_folder=self.svn_local_root)
+                        self.logger.debug("SVN add: {}".format(add_return))
+
+                    # finally, copy the file from the git subfolder source to SVN and add it to the index
+                    self.logger.debug("Copying {} to {}".format(source_file, target_file))
+                    shutil.copy2(source_file, target_file)
                     add_return = run_command_and_return_output(add + [file.split(self.config["git_subfolder"] + "/")[-1]], working_folder=self.svn_local_root)
                 else:
+                    # if there is no git_subfolder, the git and svn repos are essentially identical and can just be synced as-is
+                    self.copy_file_with_directory_tree(self.git_local_root, file, self.svn_local_root)
                     add_return = run_command_and_return_output(add + [file], working_folder=self.svn_local_root)
                 self.logger.debug("SVN add: {}".format(add_return))
             commit_return = run_command_and_return_output(commit, working_folder=self.svn_local_root)
