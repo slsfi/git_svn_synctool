@@ -45,6 +45,8 @@ class GitSVNSyncTool(object):
         self.git_local_root = os.path.join(os.getcwd(), "git_repo")
         if not os.path.exists(self.git_local_root):
             clone = run_command_and_return_output(["git", "clone", self.config["git_remote"], self.git_local_root])
+            config_user = run_command_and_return_output(["git", "-C", self.git_local_root, "config", "user.name", "sls-deployment"])
+            config_email = run_command_and_return_output(["git", "-C", self.git_local_root, "config", "user.email", "is@sls.fi"])
             self.logger.debug("Cloned remote git repo: {!r}".format("; ".join(clone)))
 
         self.svn_local_root = os.path.join(os.getcwd(), "svn_repo")
