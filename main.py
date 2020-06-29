@@ -44,6 +44,9 @@ class GitSVNSyncTool(object):
         # Set up working copies to use for syncing
         self.git_local_root = os.path.join(os.getcwd(), "git_repo")
         if not os.path.exists(self.git_local_root):
+            # if there's no local git repo, assume this is the first run. initialize from SVN.
+            self.initialize_new_git_repo = True
+            self.logger.info("Will sync all files, as this is a first run (no local git working copy exists)")
             clone = run_command_and_return_output(["git", "clone", self.config["git_remote"], self.git_local_root])
             config_user = run_command_and_return_output(["git", "-C", self.git_local_root, "config", "user.name", "sls-deployment"])
             config_email = run_command_and_return_output(["git", "-C", self.git_local_root, "config", "user.email", "is@sls.fi"])
