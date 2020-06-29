@@ -226,7 +226,7 @@ class GitSVNSyncTool(object):
             git_changes = []
             conflicts = []
             self.logger.info("Ignoring data in Git repository as requested, syncing all files in SVN repo...")
-            all_svn_files = subprocess.check_output(["svn", "ls", "-R", self.config["svn_remote"]])  # includes directories as separate lines, ending with /
+            all_svn_files = subprocess.check_output(list(self.svn) + ["ls", "-R", self.config["svn_remote"]])  # includes directories as separate lines, ending with /
             all_svn_files = [s.decode("utf-8", "ignore") for s in all_svn_files.splitlines()]
             self.logger.debug("All SVN files: {}".format(", ".join(all_svn_files)))
             svn_files = []
