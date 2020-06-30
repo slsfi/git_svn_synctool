@@ -138,15 +138,31 @@ class GitSVNSyncTool(object):
         self.logger.debug(status)
         return error_info is None, error_info, status
 
-    def copy_file_with_directory_tree(self, source_root, source_file_path, target_root):
-        if os.sep in source_file_path:
-            dir_structure = os.path.dirname(source_file_path)
-            os.makedirs(os.path.join(target_root, dir_structure), exist_ok=True)
-            self.logger.debug("Copying {} from {} to {}/{}".format(source_file_path, source_root, target_root, dir_structure))
-            shutil.copy2(os.path.join(source_root, source_file_path), os.path.join(target_root, dir_structure))
+    def sync_file_locally(self, source_root, source_file_path, target_root):
+        # if the file wanting to be synced no longer exists in the source, it's likely because it's been deleted in a commit
+        # make sure it's removed in the target as well
+        if not os.path.exists(os.path.join(source_root, source_file_path)):
+            if os.sep in source_file_path:
+                dir_structure = os.path.dirname(source_file_path)
+                try:
+                    os.remove(os.path.join(target_root, dir_structure, os.path.basename(source_file_path)))
+                except FileNotFoundError:
+                    pass
+            else:
+                try:
+                    os.remove(os.path.join(target_root, os.path.basename(source_file_path)))
+                except FileNotFoundError:
+                    pass
+        # if the file still exists in the source, copy it over to the target
         else:
-            self.logger.debug("Copying file {} from {} to {}".format(source_file_path, source_root, target_root))
-            shutil.copy2(os.path.join(source_root, source_file_path), target_root)
+            if os.sep in source_file_path:
+                dir_structure = os.path.dirname(source_file_path)
+                os.makedirs(os.path.join(target_root, dir_structure), exist_ok=True)
+                self.logger.debug("Copying {} from {} to {}/{}".format(source_file_path, source_root, target_root, dir_structure))
+                shutil.copy2(os.path.join(source_root, source_file_path), os.path.join(target_root, dir_structure))
+            else:
+                self.logger.debug("Copying file {} from {} to {}".format(source_file_path, source_root, target_root))
+                shutil.copy2(os.path.join(source_root, source_file_path), target_root)
 
     def git_to_svn(self, file_list):
         svn_update_success, svn_error, svn_status = self.update_svn_from_remote()
@@ -177,7 +193,7 @@ class GitSVNSyncTool(object):
                     add_return = run_command_and_return_output(add + [file.split(self.config["git_subfolder"] + "/")[-1]], working_folder=self.svn_local_root)
                 else:
                     # if there is no git_subfolder, the git and svn repos are essentially identical and can just be synced as-is
-                    self.copy_file_with_directory_tree(self.git_local_root, file, self.svn_local_root)
+                    self.sync_file_locally(self.git_local_root, file, self.svn_local_root)
                     add_return = run_command_and_return_output(add + [file], working_folder=self.svn_local_root)
                 self.logger.debug("SVN add: {}".format(add_return))
             commit_return = run_command_and_return_output(commit, working_folder=self.svn_local_root)
@@ -197,20 +213,27 @@ class GitSVNSyncTool(object):
         git_update_success, git_error, git_status = self.update_git_from_remote()
         if svn_update_success and git_update_success:
             for file in file_list:
+                # sync files from svn local root to git local root
                 if self.config["git_subfolder"] is not None:
-                    self.copy_file_with_directory_tree(self.svn_local_root, file, os.path.join(self.git_local_root, self.config["git_subfolder"]))
-                    add_return = run_command_and_return_output(["git", "-C", self.git_local_root, "add", os.path.join(self.config["git_subfolder"], file)])
+                    self.sync_file_locally(self.svn_local_root, file, os.path.join(self.git_local_root, self.config["git_subfolder"]))
                 else:
-                    self.copy_file_with_directory_tree(self.svn_local_root, file, self.git_local_root)
-                    add_return = run_command_and_return_output(["git", "-C", self.git_local_root, "add", file])
+                    self.sync_file_locally(self.svn_local_root, file, self.git_local_root)
 
-                self.logger.debug("Git add: {}".format(add_return))
+            # run git add command
+            if self.config["git_subfolder"] is not None:
+                add_return = run_command_and_return_output(["git" "-C", self.git_local_root, "add", self.config["git_subfolder"]])
+            else:
+                add_return = run_command_and_return_output(["git" "-C", self.git_local_root, "add", "."])
+            self.logger.debug("Git add: {}".format(add_return))
+            
+            # run git commit command
             commit_return = run_command_and_return_output(["git", "-C", self.git_local_root,
                                                            "commit", "-m", "Sync from SVN"])
-            self.logger.debug("Git commit: {}".format(commit_return))
+            self.logger.info("Git commit: {}".format(commit_return))
 
+            # run git push command
             push_return = run_command_and_return_output(["git", "-C", self.git_local_root, "push"])
-            self.logger.debug("Git push: {}".format(push_return))
+            self.logger.info("Git push: {}".format(push_return))
         else:
             if not svn_update_success:
                 self.logger.error("Error in SVN update - {}".format(svn_error))
