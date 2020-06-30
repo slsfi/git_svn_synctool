@@ -221,11 +221,11 @@ class GitSVNSyncTool(object):
 
             # run git add command
             if self.config["git_subfolder"] is not None:
-                add_return = run_command_and_return_output(["git" "-C", self.git_local_root, "add", self.config["git_subfolder"]])
+                add_return = run_command_and_return_output(["git", "-C", self.git_local_root, "add", self.config["git_subfolder"]])
             else:
-                add_return = run_command_and_return_output(["git" "-C", self.git_local_root, "add", "."])
+                add_return = run_command_and_return_output(["git", "-C", self.git_local_root, "add", "."])
             self.logger.debug("Git add: {}".format(add_return))
-            
+
             # run git commit command
             commit_return = run_command_and_return_output(["git", "-C", self.git_local_root,
                                                            "commit", "-m", "Sync from SVN"])
