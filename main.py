@@ -76,6 +76,10 @@ class GitSVNSyncTool(object):
             changed_files = run_command_and_return_output(["git", "-C", self.git_local_root, "show",
                                                            "--pretty=format:", "--name-only", "..origin/master"])
             self.logger.debug("Git changes since {}: {!r}".format(current_commit_hash, ", ".join(changed_files)))
+            
+        # don't return changes that aren't in the git subfolder if one is defined (this is so we don't sync irrelevant files to SVN)
+        if self.config["git_subfolder"] is not None:
+            changed_files = [f for f in changed_files if f.startswith(self.config["git_subfolder"])]
 
         return changed_files
 
@@ -174,6 +178,10 @@ class GitSVNSyncTool(object):
             for file in file_list:
                 self.logger.debug("Filename: '{}'".format(file))
                 if self.config["git_subfolder"] is not None:
+                    # If this file is outside the git subfolder, ignore it
+                    if file.split(os.sep)[0] != self.config["git_subfolder"]:
+                        continue
+                    
                     # If there is a git_subfolder defined, we need to make sure the file structure in it is synced to SVN without making a subfolder for it.
                     # Thus, strip out git_subfolder from the filepath
                     file_no_git_subfolder = file.split(self.config["git_subfolder"])[-1].lstrip(os.sep)
@@ -291,6 +299,9 @@ class GitSVNSyncTool(object):
                 self.logger.info("No conflicts.")
                 self.logger.info("Syncing to git: {}".format(", ".join(svn_changes)))
                 self.svn_to_git(svn_changes)
+                if self.config["git_subfolder"] is not None:
+                    self.logger.info("Skipping sync for files not in masterfiles directory...")
+                    git_changes = [file for file in git_changes if file.startswith(self.config["git_subfolder"])]
                 self.logger.info("Syncing to SVN: {}".format(", ".join(git_changes)))
                 self.git_to_svn(git_changes)
             else:
