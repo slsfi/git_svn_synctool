@@ -159,14 +159,17 @@ class GitSVNSyncTool(object):
                     pass
         # if the file still exists in the source, copy it over to the target
         else:
-            if os.sep in source_file_path:
-                dir_structure = os.path.dirname(source_file_path)
-                os.makedirs(os.path.join(target_root, dir_structure), exist_ok=True)
-                self.logger.debug("Copying {} from {} to {}/{}".format(source_file_path, source_root, target_root, dir_structure))
-                shutil.copy2(os.path.join(source_root, source_file_path), os.path.join(target_root, dir_structure))
+            if os.path.isdir(os.path.join(source_root, source_file_path)):
+                os.makedirs(os.path.join(target_root, source_file_path), exist_ok=True)
             else:
-                self.logger.debug("Copying file {} from {} to {}".format(source_file_path, source_root, target_root))
-                shutil.copy2(os.path.join(source_root, source_file_path), target_root)
+                if os.sep in source_file_path:
+                    dir_structure = os.path.dirname(source_file_path)
+                    os.makedirs(os.path.join(target_root, dir_structure), exist_ok=True)
+                    self.logger.debug("Copying {} from {} to {}/{}".format(source_file_path, source_root, target_root, dir_structure))
+                    shutil.copy2(os.path.join(source_root, source_file_path), os.path.join(target_root, dir_structure))
+                else:
+                    self.logger.debug("Copying file {} from {} to {}".format(source_file_path, source_root, target_root))
+                    shutil.copy2(os.path.join(source_root, source_file_path), target_root)
 
     def git_to_svn(self, file_list):
         svn_update_success, svn_error, svn_status = self.update_svn_from_remote()
