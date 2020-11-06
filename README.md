@@ -1,10 +1,13 @@
 # Git-SVN Synctool
-- Tool for syncing files between an SVN master repo and a Git "slave"
+- Tool for syncing files between an SVN primary repo and a Git secondary, optionally into a subfolder
 - Changes in Git repo are synced back to SVN
 - On conflicting changes, entire file is synced from SVN to Git, overwriting changes
 - See example_config.yml for example config
 
 ## Usage
+- Set up a python virtualenv - `virtualenv venv`
+- Activate the virtualenv - `source venv/bin/activate`
+- Install requirements - `pip install -r requirements.txt`
 - See python main.py -h
 - python main.py <config_filename>
 
