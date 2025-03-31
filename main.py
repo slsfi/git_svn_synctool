@@ -230,21 +230,26 @@ class GitSVNSyncTool(object):
                 else:
                     self.sync_file_locally(self.svn_local_root, file, self.git_local_root)
 
-            # run git add command
-            if self.config["git_subfolder"] is not None:
-                add_return = run_command_and_return_output(["git", "-C", self.git_local_root, "add", self.config["git_subfolder"]])
-            else:
-                add_return = run_command_and_return_output(["git", "-C", self.git_local_root, "add", "."])
-            self.logger.debug("Git add: {}".format(add_return))
+            # check if add/commit is needed (local changes exist)
+            status_lines = run_command_and_return_output(["git", "-C", self.git_local_root, "status", "--porcelain=1"])
+            self.logger.debug("Git status --porcelain=1: {}".format(repr(status_lines)))
 
-            # run git commit command
-            commit_return = run_command_and_return_output(["git", "-C", self.git_local_root,
-                                                           "commit", "-m", "Sync from SVN"])
-            self.logger.info("Git commit: {}".format(commit_return))
+            if status_lines:
+                # run git add command
+                if self.config["git_subfolder"] is not None:
+                    add_return = run_command_and_return_output(["git", "-C", self.git_local_root, "add", self.config["git_subfolder"]])
+                else:
+                    add_return = run_command_and_return_output(["git", "-C", self.git_local_root, "add", "."])
+                self.logger.debug("Git add: {}".format(add_return))
 
-            # run git push command
-            push_return = run_command_and_return_output(["git", "-C", self.git_local_root, "push"])
-            self.logger.info("Git push: {}".format(push_return))
+                # run git commit command
+                commit_return = run_command_and_return_output(["git", "-C", self.git_local_root,
+                                                            "commit", "-m", "Sync from SVN"])
+                self.logger.info("Git commit: {}".format(commit_return))
+
+                # run git push command
+                push_return = run_command_and_return_output(["git", "-C", self.git_local_root, "push"])
+                self.logger.info("Git push: {}".format(push_return))
         else:
             if not svn_update_success:
                 self.logger.error("Error in SVN update - {}".format(svn_error))
