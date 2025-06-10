@@ -66,7 +66,7 @@ class GitSVNSyncTool(object):
 
         # Get changes/commits since last update
         commits = run_command_and_return_output(["git", "-C", self.git_local_root, "log",
-                                                 "--no-merges", "--pretty=format:%s", "..origin/master"])
+                                                 "--no-merges", "--pretty=format:%s", f"..origin/{self.config['git_branch']}"])
         commits = list(reversed(commits))
 
         self.logger.debug("Git commits since {}: {!r}".format(current_commit_hash, " | ".join(commits)))
@@ -74,7 +74,7 @@ class GitSVNSyncTool(object):
         changed_files = []
         if not len(commits) == 0:
             changed_files = run_command_and_return_output(["git", "-C", self.git_local_root, "show",
-                                                           "--pretty=format:", "--name-only", "..origin/master"])
+                                                           "--pretty=format:", "--name-only", f"..origin/{self.config['git_branch']}"])
             self.logger.debug("Git changes since {}: {!r}".format(current_commit_hash, ", ".join(changed_files)))
             
         # don't return changes that aren't in the git subfolder if one is defined (this is so we don't sync irrelevant files to SVN)
@@ -112,7 +112,7 @@ class GitSVNSyncTool(object):
         return_code = subprocess.check_call(["git", "-C", self.git_local_root, "pull"])
         if return_code != 0:
             error_info = run_command_and_return_output(["git", "-C", self.git_local_root, "log",
-                                                        "--no-merges", "--pretty=format:%s", "..origin/master"])
+                                                        "--no-merges", "--pretty=format:%s", f"..origin/{self.config['git_branch']}"])
             error_info = list(reversed(error_info))
             self.logger.debug(error_info)
         else:

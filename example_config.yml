@@ -1,4 +1,5 @@
 git_remote: git@github.com:Organisation/TestingRepo.git
+git_branch: master
 git_subfolder: masterfiles
 
 svn_remote: http://svn.organisation.com/repos/test
